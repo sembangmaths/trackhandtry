@@ -3,20 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tangkap Buah</title>
+<title>Pecah Belon Nombor</title>
 <style>
-  :root{--bg:#10281f;--ink:#fff7e0;--accent:#ffb627;--bad:#ff5a4e;--panel:rgba(16,40,31,.88)}
+  :root{--bg:#14213d;--ink:#fff8ea;--accent:#fca311;--panel:rgba(20,33,61,.92)}
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",sans-serif;overflow:hidden}
   video{display:none}
   canvas{position:fixed;inset:0;width:100%;height:100%}
-  #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;font-size:22px;font-weight:700;text-shadow:0 2px 6px #000a;pointer-events:none}
+  #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px;font-size:20px;font-weight:700;text-shadow:0 2px 6px #000a;pointer-events:none}
   #cam{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);right:12px;background:var(--panel);color:var(--ink);border:2px solid var(--accent);border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;display:none}
   #menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:var(--panel)}
-  h1{font-size:clamp(40px,9vw,72px);margin:0;color:var(--accent);letter-spacing:-1px}
-  p{margin:0;max-width:34ch;line-height:1.5;font-size:18px}
-  #go{background:var(--accent);color:#1b1300;border:0;border-radius:14px;padding:16px 34px;font:inherit;font-size:22px;font-weight:800;margin-top:6px}
-  #go:disabled{opacity:.6}
+  h1{font-size:clamp(38px,9vw,68px);margin:0;color:var(--accent);letter-spacing:-1px}
+  p{margin:0;max-width:36ch;line-height:1.5;font-size:18px}
+  .ops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .ops button{background:var(--accent);color:#1b1300;border:0;border-radius:14px;padding:16px 22px;font:inherit;font-size:20px;font-weight:800}
+  .ops button:disabled{opacity:.6}
   #msg{min-height:22px;font-size:15px;color:#ffd9a0}
   button:focus-visible{outline:3px solid #fff;outline-offset:3px}
 </style>
@@ -27,10 +28,15 @@
 <div id="hud" hidden><span id="sk">0</span><span id="mas">60s</span><span id="ny">❤️❤️❤️</span></div>
 <button id="cam">Tukar kamera</button>
 <div id="menu">
-  <h1>Tangkap Buah</h1>
-  <p>Gerakkan jari telunjuk di depan kamera. Sentuh buah untuk dapat markah, elak bom 💣.</p>
+  <h1>Pecah Belon Nombor</h1>
+  <p>Baca soalan di atas, kemudian pecahkan belon yang ada jawapan betul dengan jari telunjuk.</p>
   <p id="rek"></p>
-  <button id="go">Mula</button>
+  <div class="ops">
+    <button data-op="+">Tambah</button>
+    <button data-op="-">Tolak</button>
+    <button data-op="x">Darab</button>
+    <button data-op="?">Campur</button>
+  </div>
   <div id="msg"></div>
 </div>
 <script type="module">
@@ -41,7 +47,7 @@ function saiz(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;c.width=W
 addEventListener("resize",saiz);saiz();
 
 let hand=null,mode="user",jalan=false;
-let rekod=0;try{rekod=+localStorage.getItem("tb_rekod")||0}catch(e){}
+let rekod=0;try{rekod=+localStorage.getItem("pb_rekod")||0}catch(e){}
 $("rek").textContent=rekod?"Rekod terbaik: "+rekod:"";
 
 async function bukaKamera(){
@@ -58,37 +64,51 @@ async function muat(){
 }
 
 // ---- Game ----
-const BUAH=["🍎","🍌","🍇","🍉","🍊","🍓"];
-let items,skor,nyawa,masa,jari,pecah,lastT,lastV=-1,tamat,spawnT;
-function reset(){items=[];skor=0;nyawa=3;masa=60;pecah=[];tamat=false;spawnT=0;jari={x:W/2,y:H/2,ada:false}}
+const WARNA=["#ef476f","#ffd166","#06d6a0","#4cc9f0","#b388ff","#ff9f1c"];
+let op,soal,belon,skor,nyawa,masa,jari,pecah,lastT,lastV=-1,tamat,aktif=false,rehat=0;
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 
-function spawn(dt){
-  spawnT-=dt;
-  if(spawnT>0)return;
-  const t=60-masa;
-  spawnT=Math.max(.35,.9-t*.01);
-  const bom=Math.random()<.2+Math.min(.12,t*.002);
-  items.push({x:40+Math.random()*(W-80),y:-40,vy:(150+Math.random()*80+t*3)*(H/700),bom,e:bom?"💣":BUAH[Math.random()*BUAH.length|0],r:Math.random()*6});
+function janaSoalan(){
+  let o=op==="?"?["+","-","x"][rnd(0,2)]:op,a,b,j;
+  const t=60-masa,mx=10+Math.min(15,Math.floor(t/6));
+  if(o==="+"){a=rnd(1,mx);b=rnd(1,mx);j=a+b}
+  else if(o==="-"){a=rnd(2,mx+5);b=rnd(1,a);j=a-b}
+  else{a=rnd(2,9);b=rnd(2,9);j=a*b}
+  return{teks:a+" "+(o==="x"?"×":o==="-"?"−":"+")+" "+b+" = ?",j};
 }
-function letup(x,y,txt,warna){pecah.push({x,y,txt,warna,t:0})}
+function bundar(){
+  soal=janaSoalan();
+  const set=new Set([soal.j]);
+  let g=0;
+  while(set.size<4&&g++<50){
+    const d=rnd(1,5)*(Math.random()<.5?-1:1),n=soal.j+d;
+    if(n>=0)set.add(n);
+  }
+  const nilai=[...set].sort(()=>Math.random()-.5);
+  const R=Math.max(38,Math.min(W,H)*.075),lebar=W/nilai.length;
+  belon=nilai.map((n,i)=>({n,x:lebar*(i+.5)+rnd(-12,12),y:H+R+rnd(0,120),vy:(70+Math.random()*40)*(H/700),r:R,w:WARNA[(Math.random()*WARNA.length)|0],ph:Math.random()*6}));
+}
+function reset(){skor=0;nyawa=3;masa=60;pecah=[];tamat=false;rehat=0;jari={x:W/2,y:H/2,ada:false};bundar()}
+function letup(x,y,txt,w){pecah.push({x,y,txt,w,t:0})}
 
 function update(dt){
   if(tamat)return;
   masa-=dt;$("mas").textContent=Math.max(0,Math.ceil(masa))+"s";
   if(masa<=0||nyawa<=0)return akhir();
-  spawn(dt);
-  const R=Math.max(34,Math.min(W,H)*.07);
-  for(const it of items){
-    it.y+=it.vy*dt;
-    if(jari.ada&&Math.hypot(it.x-jari.x,it.y-jari.y)<R+22){
-      it.mati=true;
-      if(it.bom){nyawa--;letup(it.x,it.y,"💥 -1❤️","#ff5a4e")}
-      else{skor+=10;letup(it.x,it.y,"+10","#ffb627")}
-    }else if(it.y>H+40){
-      it.mati=true;
+  if(rehat>0){rehat-=dt;if(rehat<=0)bundar();}
+  else{
+    for(const b of belon){
+      b.y-=b.vy*dt;b.xx=b.x+Math.sin(b.y/50+b.ph)*10;
+      if(jari.ada&&!b.mati&&Math.hypot(b.xx-jari.x,b.y-jari.y)<b.r+18){
+        b.mati=true;
+        if(b.n===soal.j){skor+=10;letup(b.xx,b.y,"✔ +10","#06d6a0");rehat=.6;belon=belon.filter(x=>x===b?false:true);}
+        else{nyawa--;letup(b.xx,b.y,"✘ -1❤️","#ff5a4e")}
+      }
     }
+    belon=belon.filter(b=>!b.mati);
+    const betul=belon.find(b=>b.n===soal.j);
+    if(rehat<=0&&betul&&betul.y<-betul.r*2.5){nyawa--;letup(W/2,H*.5,"Terlepas! -1❤️","#ff5a4e");rehat=.6;belon=[];}
   }
-  items=items.filter(i=>!i.mati);
   $("sk").textContent="⭐ "+skor;
   $("ny").textContent="❤️".repeat(Math.max(0,nyawa));
   for(const p of pecah)p.t+=dt;
@@ -102,19 +122,31 @@ function lukis(){
     if(mode==="user"){ctx.translate(W,0);ctx.scale(-1,1)}
     ctx.globalAlpha=.9;ctx.drawImage(v,0,0,W,H);
     ctx.restore();
-    ctx.fillStyle="rgba(10,30,20,.35)";ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="rgba(20,33,61,.4)";ctx.fillRect(0,0,W,H);
   }
   ctx.textAlign="center";ctx.textBaseline="middle";
-  const fs=Math.max(40,Math.min(W,H)*.09);
-  ctx.font=fs+"px serif";
-  for(const it of items){ctx.save();ctx.translate(it.x,it.y);ctx.rotate(Math.sin(it.y/60+it.r)*.3);ctx.fillText(it.e,0,0);ctx.restore()}
-  for(const p of pecah){ctx.globalAlpha=1-p.t/.8;ctx.fillStyle=p.warna;ctx.font="bold 28px sans-serif";ctx.fillText(p.txt,p.x,p.y-p.t*70)}
+  if(aktif&&soal){
+    ctx.fillStyle="rgba(20,33,61,.8)";
+    const bw=Math.min(W-30,420);
+    ctx.beginPath();ctx.roundRect((W-bw)/2,64,bw,70,16);ctx.fill();
+    ctx.fillStyle="#fff8ea";ctx.font="bold "+Math.min(44,bw/7)+"px 'Trebuchet MS',sans-serif";
+    ctx.fillText(soal.teks,W/2,100);
+  }
+  for(const b of belon||[]){
+    const x=b.xx??b.x;
+    ctx.strokeStyle="#fff8";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(x,b.y+b.r*1.15);ctx.quadraticCurveTo(x+8,b.y+b.r*1.8,x-4,b.y+b.r*2.4);ctx.stroke();
+    ctx.fillStyle=b.w;ctx.beginPath();ctx.ellipse(x,b.y,b.r*.88,b.r*1.1,0,0,7);ctx.fill();
+    ctx.fillStyle="#fff4";ctx.beginPath();ctx.ellipse(x-b.r*.3,b.y-b.r*.4,b.r*.18,b.r*.3,.5,0,7);ctx.fill();
+    ctx.fillStyle="#fff";ctx.font="bold "+(b.r*.8)+"px 'Trebuchet MS',sans-serif";
+    ctx.shadowColor="#0008";ctx.shadowBlur=4;ctx.fillText(b.n,x,b.y);ctx.shadowBlur=0;
+  }
+  for(const p of pecah){ctx.globalAlpha=1-p.t/.8;ctx.fillStyle=p.w;ctx.font="bold 28px sans-serif";ctx.fillText(p.txt,p.x,p.y-p.t*70)}
   ctx.globalAlpha=1;
-  if(jari.ada){
-    const R=Math.max(34,Math.min(W,H)*.07);
-    ctx.beginPath();ctx.arc(jari.x,jari.y,R,0,7);
-    ctx.fillStyle="rgba(255,182,39,.25)";ctx.fill();
-    ctx.lineWidth=4;ctx.strokeStyle="#ffb627";ctx.stroke();
+  if(jari&&jari.ada){
+    ctx.beginPath();ctx.arc(jari.x,jari.y,16,0,7);
+    ctx.fillStyle="rgba(252,163,17,.35)";ctx.fill();
+    ctx.lineWidth=4;ctx.strokeStyle="#fca311";ctx.stroke();
   }
 }
 
@@ -131,15 +163,15 @@ function kesan(){
 }
 
 function akhir(){
-  tamat=true;
+  tamat=true;aktif=false;
   let baru=false;
-  if(skor>rekod){rekod=skor;baru=true;try{localStorage.setItem("tb_rekod",rekod)}catch(e){}}
+  if(skor>rekod){rekod=skor;baru=true;try{localStorage.setItem("pb_rekod",rekod)}catch(e){}}
   $("hud").hidden=true;$("cam").style.display="none";
   $("menu").style.display="flex";
-  $("menu").querySelector("h1").textContent=nyawa<=0?"Bom kena!":"Masa tamat!";
-  $("menu").querySelectorAll("p")[0].textContent="Markah anda: "+skor+(baru?" 🎉 Rekod baharu!":"");
+  $("menu").querySelector("h1").textContent=nyawa<=0?"Nyawa habis!":"Masa tamat!";
+  $("menu").querySelectorAll("p")[0].textContent="Markah anda: "+skor+(baru?" 🎉 Rekod baharu!":"")+". Pilih operasi untuk main lagi.";
   $("rek").textContent="Rekod terbaik: "+rekod;
-  $("go").textContent="Main lagi";$("go").disabled=false;
+  document.querySelectorAll(".ops button").forEach(b=>b.disabled=false);
 }
 
 function gelung(t){
@@ -148,23 +180,23 @@ function gelung(t){
   requestAnimationFrame(gelung);
 }
 
-$("go").onclick=async()=>{
-  $("go").disabled=true;$("msg").textContent="";
+document.querySelectorAll(".ops button").forEach(btn=>btn.onclick=async()=>{
+  document.querySelectorAll(".ops button").forEach(b=>b.disabled=true);
+  $("msg").textContent="";op=btn.dataset.op;
   try{
     if(!jalan){
       $("msg").textContent="Membuka kamera dan memuat model...";
       await bukaKamera();await muat();jalan=true;
       requestAnimationFrame(gelung);
     }
-    reset();
+    reset();aktif=true;
     $("menu").style.display="none";$("hud").hidden=false;$("cam").style.display="block";
   }catch(e){
     $("msg").textContent="Gagal: benarkan kamera dan pastikan guna https atau localhost, serta ada internet.";
-    $("go").disabled=false;
+    document.querySelectorAll(".ops button").forEach(b=>b.disabled=false);
   }
-};
+});
 $("cam").onclick=async()=>{mode=mode==="user"?"environment":"user";try{await bukaKamera()}catch(e){}};
-reset();
 </script>
 </body>
 </html>
