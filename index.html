@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tangkap Buah</title>
+<style>
+  :root{--bg:#10281f;--ink:#fff7e0;--accent:#ffb627;--bad:#ff5a4e;--panel:rgba(16,40,31,.88)}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",sans-serif;overflow:hidden}
+  video{display:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%}
+  #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;font-size:22px;font-weight:700;text-shadow:0 2px 6px #000a;pointer-events:none}
+  #cam{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);right:12px;background:var(--panel);color:var(--ink);border:2px solid var(--accent);border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;display:none}
+  #menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:var(--panel)}
+  h1{font-size:clamp(40px,9vw,72px);margin:0;color:var(--accent);letter-spacing:-1px}
+  p{margin:0;max-width:34ch;line-height:1.5;font-size:18px}
+  #go{background:var(--accent);color:#1b1300;border:0;border-radius:14px;padding:16px 34px;font:inherit;font-size:22px;font-weight:800;margin-top:6px}
+  #go:disabled{opacity:.6}
+  #msg{min-height:22px;font-size:15px;color:#ffd9a0}
+  button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+</style>
+</head>
+<body>
+<video id="v" autoplay playsinline muted></video>
+<canvas id="c"></canvas>
+<div id="hud" hidden><span id="sk">0</span><span id="mas">60s</span><span id="ny">❤️❤️❤️</span></div>
+<button id="cam">Tukar kamera</button>
+<div id="menu">
+  <h1>Tangkap Buah</h1>
+  <p>Gerakkan jari telunjuk di depan kamera. Sentuh buah untuk dapat markah, elak bom 💣.</p>
+  <p id="rek"></p>
+  <button id="go">Mula</button>
+  <div id="msg"></div>
+</div>
+<script type="module">
+const $=id=>document.getElementById(id);
+const v=$("v"),c=$("c"),ctx=c.getContext("2d");
+let W,H;
+function saiz(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;c.width=W*d;c.height=H*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener("resize",saiz);saiz();
+
+let hand=null,mode="user",jalan=false;
+let rekod=0;try{rekod=+localStorage.getItem("tb_rekod")||0}catch(e){}
+$("rek").textContent=rekod?"Rekod terbaik: "+rekod:"";
+
+async function bukaKamera(){
+  if(v.srcObject)v.srcObject.getTracks().forEach(t=>t.stop());
+  v.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode,width:480,height:360},audio:false});
+  await v.play();
+}
+async function muat(){
+  const m=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm");
+  const vis=await m.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  const baseOptions={modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"};
+  try{hand=await m.HandLandmarker.createFromOptions(vis,{baseOptions:{...baseOptions,delegate:"GPU"},runningMode:"VIDEO",numHands:1})}
+  catch(e){hand=await m.HandLandmarker.createFromOptions(vis,{baseOptions,runningMode:"VIDEO",numHands:1})}
+}
+
+// ---- Game ----
+const BUAH=["🍎","🍌","🍇","🍉","🍊","🍓"];
+let items,skor,nyawa,masa,jari,pecah,lastT,lastV=-1,tamat,spawnT;
+function reset(){items=[];skor=0;nyawa=3;masa=60;pecah=[];tamat=false;spawnT=0;jari={x:W/2,y:H/2,ada:false}}
+
+function spawn(dt){
+  spawnT-=dt;
+  if(spawnT>0)return;
+  const t=60-masa;
+  spawnT=Math.max(.35,.9-t*.01);
+  const bom=Math.random()<.2+Math.min(.12,t*.002);
+  items.push({x:40+Math.random()*(W-80),y:-40,vy:(150+Math.random()*80+t*3)*(H/700),bom,e:bom?"💣":BUAH[Math.random()*BUAH.length|0],r:Math.random()*6});
+}
+function letup(x,y,txt,warna){pecah.push({x,y,txt,warna,t:0})}
+
+function update(dt){
+  if(tamat)return;
+  masa-=dt;$("mas").textContent=Math.max(0,Math.ceil(masa))+"s";
+  if(masa<=0||nyawa<=0)return akhir();
+  spawn(dt);
+  const R=Math.max(34,Math.min(W,H)*.07);
+  for(const it of items){
+    it.y+=it.vy*dt;
+    if(jari.ada&&Math.hypot(it.x-jari.x,it.y-jari.y)<R+22){
+      it.mati=true;
+      if(it.bom){nyawa--;letup(it.x,it.y,"💥 -1❤️","#ff5a4e")}
+      else{skor+=10;letup(it.x,it.y,"+10","#ffb627")}
+    }else if(it.y>H+40){
+      it.mati=true;
+    }
+  }
+  items=items.filter(i=>!i.mati);
+  $("sk").textContent="⭐ "+skor;
+  $("ny").textContent="❤️".repeat(Math.max(0,nyawa));
+  for(const p of pecah)p.t+=dt;
+  pecah=pecah.filter(p=>p.t<.8);
+}
+
+function lukis(){
+  ctx.clearRect(0,0,W,H);
+  if(v.readyState>=2){
+    ctx.save();
+    if(mode==="user"){ctx.translate(W,0);ctx.scale(-1,1)}
+    ctx.globalAlpha=.9;ctx.drawImage(v,0,0,W,H);
+    ctx.restore();
+    ctx.fillStyle="rgba(10,30,20,.35)";ctx.fillRect(0,0,W,H);
+  }
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  const fs=Math.max(40,Math.min(W,H)*.09);
+  ctx.font=fs+"px serif";
+  for(const it of items){ctx.save();ctx.translate(it.x,it.y);ctx.rotate(Math.sin(it.y/60+it.r)*.3);ctx.fillText(it.e,0,0);ctx.restore()}
+  for(const p of pecah){ctx.globalAlpha=1-p.t/.8;ctx.fillStyle=p.warna;ctx.font="bold 28px sans-serif";ctx.fillText(p.txt,p.x,p.y-p.t*70)}
+  ctx.globalAlpha=1;
+  if(jari.ada){
+    const R=Math.max(34,Math.min(W,H)*.07);
+    ctx.beginPath();ctx.arc(jari.x,jari.y,R,0,7);
+    ctx.fillStyle="rgba(255,182,39,.25)";ctx.fill();
+    ctx.lineWidth=4;ctx.strokeStyle="#ffb627";ctx.stroke();
+  }
+}
+
+function kesan(){
+  if(!hand||v.readyState<2||v.currentTime===lastV)return;
+  lastV=v.currentTime;
+  const r=hand.detectForVideo(v,performance.now());
+  if(r.landmarks.length){
+    const p=r.landmarks[0][8];
+    const tx=(mode==="user"?1-p.x:p.x)*W,ty=p.y*H;
+    if(!jari.ada){jari.x=tx;jari.y=ty}
+    jari.x+=(tx-jari.x)*.6;jari.y+=(ty-jari.y)*.6;jari.ada=true;
+  }else jari.ada=false;
+}
+
+function akhir(){
+  tamat=true;
+  let baru=false;
+  if(skor>rekod){rekod=skor;baru=true;try{localStorage.setItem("tb_rekod",rekod)}catch(e){}}
+  $("hud").hidden=true;$("cam").style.display="none";
+  $("menu").style.display="flex";
+  $("menu").querySelector("h1").textContent=nyawa<=0?"Bom kena!":"Masa tamat!";
+  $("menu").querySelectorAll("p")[0].textContent="Markah anda: "+skor+(baru?" 🎉 Rekod baharu!":"");
+  $("rek").textContent="Rekod terbaik: "+rekod;
+  $("go").textContent="Main lagi";$("go").disabled=false;
+}
+
+function gelung(t){
+  const dt=Math.min(.05,(t-(lastT||t))/1000);lastT=t;
+  kesan();update(dt);lukis();
+  requestAnimationFrame(gelung);
+}
+
+$("go").onclick=async()=>{
+  $("go").disabled=true;$("msg").textContent="";
+  try{
+    if(!jalan){
+      $("msg").textContent="Membuka kamera dan memuat model...";
+      await bukaKamera();await muat();jalan=true;
+      requestAnimationFrame(gelung);
+    }
+    reset();
+    $("menu").style.display="none";$("hud").hidden=false;$("cam").style.display="block";
+  }catch(e){
+    $("msg").textContent="Gagal: benarkan kamera dan pastikan guna https atau localhost, serta ada internet.";
+    $("go").disabled=false;
+  }
+};
+$("cam").onclick=async()=>{mode=mode==="user"?"environment":"user";try{await bukaKamera()}catch(e){}};
+reset();
+</script>
+</body>
+</html>
