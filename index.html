@@ -2,22 +2,30 @@
 <html lang="ms">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Padan Jawapan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tangkap Buah">
+<meta name="theme-color" content="#10281f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Tangkap Buah</title>
 <style>
-  :root{--bg:#1b2a41;--ink:#fdf6e3;--accent:#f4a261;--panel:rgba(27,42,65,.93)}
+  :root{--bg:#10281f;--ink:#fff7e0;--accent:#ffb627;--bad:#ff5a4e;--panel:rgba(16,40,31,.88)}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",sans-serif;overflow:hidden}
-  video{display:none}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+  video{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
   canvas{position:fixed;inset:0;width:100%;height:100%}
-  #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px;font-size:20px;font-weight:700;text-shadow:0 2px 6px #000a;pointer-events:none}
-  #cam{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);right:12px;background:var(--panel);color:var(--ink);border:2px solid var(--accent);border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;display:none}
+  #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;font-size:22px;font-weight:700;text-shadow:0 2px 6px #000a;pointer-events:none}
+  #cam,#mir{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);right:12px;background:var(--panel);color:var(--ink);border:2px solid var(--accent);border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;display:none}
+  #mir{right:auto;left:12px}
   #menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:var(--panel)}
-  h1{font-size:clamp(38px,9vw,68px);margin:0;color:var(--accent);letter-spacing:-1px}
-  p{margin:0;max-width:38ch;line-height:1.5;font-size:18px}
-  .ops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
-  .ops button{background:var(--accent);color:#2a1500;border:0;border-radius:14px;padding:16px 22px;font:inherit;font-size:20px;font-weight:800}
-  .ops button:disabled{opacity:.6}
+  h1{font-size:clamp(40px,9vw,72px);margin:0;color:var(--accent);letter-spacing:-1px}
+  p{margin:0;max-width:34ch;line-height:1.5;font-size:18px}
+  #go{background:var(--accent);color:#1b1300;border:0;border-radius:14px;padding:16px 34px;font:inherit;font-size:22px;font-weight:800;margin-top:6px}
+  #go:disabled{opacity:.6}
   #msg{min-height:22px;font-size:15px;color:#ffd9a0}
   button:focus-visible{outline:3px solid #fff;outline-offset:3px}
 </style>
@@ -25,35 +33,39 @@
 <body>
 <video id="v" autoplay playsinline muted></video>
 <canvas id="c"></canvas>
-<div id="hud" hidden><span id="sk">0</span><span id="mas">90s</span><span id="ny">❤️❤️❤️</span></div>
+<div id="hud" hidden><span id="sk">0</span><span id="mas">60s</span><span id="ny">❤️❤️❤️</span></div>
 <button id="cam">Tukar kamera</button>
+<button id="mir">Cermin: ON</button>
 <div id="menu">
-  <h1>Padan Jawapan</h1>
-  <p>Cubit kad soalan dengan ibu jari dan telunjuk, seret, kemudian lepaskan atas jawapan yang betul.</p>
+  <h1>Tangkap Buah</h1>
+  <p>Gerakkan jari telunjuk di depan kamera. Sentuh buah untuk dapat markah, elak bom 💣.</p>
   <p id="rek"></p>
-  <div class="ops">
-    <button data-op="+">Tambah</button>
-    <button data-op="-">Tolak</button>
-    <button data-op="x">Darab</button>
-    <button data-op="?">Campur</button>
-  </div>
+  <button id="go">Mula</button>
   <div id="msg"></div>
 </div>
 <script type="module">
 const $=id=>document.getElementById(id);
 const v=$("v"),c=$("c"),ctx=c.getContext("2d");
 let W,H;
-function saiz(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;c.width=W*d;c.height=H*d;ctx.setTransform(d,0,0,d,0,0);if(kad)susun()}
-let kad=null;
-addEventListener("resize",saiz);
+function saiz(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;c.width=W*d;c.height=H*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener("resize",saiz);saiz();
 
-let hand=null,mode="user",jalan=false;
-let rekod=0;try{rekod=+localStorage.getItem("pj_rekod")||0}catch(e){}
+let hand=null,mode="user",jalan=false,cermin=true;
+function peta(px,py){const vw=v.videoWidth||640,vh=v.videoHeight||480,s=Math.max(W/vw,H/vh);let x=px*vw*s+(W-vw*s)/2;const y=py*vh*s+(H-vh*s)/2;if(cermin)x=W-x;return[x,y]}
+function lukisVideo(warna){
+  if(v.readyState<2)return;
+  const vw=v.videoWidth,vh=v.videoHeight,s=Math.max(W/vw,H/vh),dw=vw*s,dh=vh*s;
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";if(cermin){ctx.translate(W,0);ctx.scale(-1,1)}
+  ctx.drawImage(v,(W-dw)/2,(H-dh)/2,dw,dh);ctx.restore();
+  ctx.fillStyle=warna;ctx.fillRect(0,0,W,H);
+}
+function labelCermin(){$("mir").textContent="Cermin: "+(cermin?"ON":"OFF")}
+let rekod=0;try{rekod=+localStorage.getItem("tb_rekod")||0}catch(e){}
 $("rek").textContent=rekod?"Rekod terbaik: "+rekod:"";
 
 async function bukaKamera(){
   if(v.srcObject)v.srcObject.getTracks().forEach(t=>t.stop());
-  v.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode,width:480,height:360},audio:false});
+  v.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode,width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}},audio:false});
   await v.play();
 }
 async function muat(){
@@ -65,132 +77,67 @@ async function muat(){
 }
 
 // ---- Game ----
-let op,skor,nyawa,masa,jari,pecah,lastT,lastV=-1,tamat,aktif=false,rehat=0,pegang=null,cw,ch;
-const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const BUAH=["🍎","🍌","🍇","🍉","🍊","🍓"];
+let items,skor,nyawa,masa,jari,pecah,lastT,lastV=-1,tamat,spawnT;
+function reset(){items=[];skor=0;nyawa=3;masa=60;pecah=[];tamat=false;spawnT=0;jari={x:W/2,y:H/2,ada:false}}
 
-function pasangan(){
-  const mx=10+Math.min(15,Math.floor((90-masa)/8));
-  const s=new Set(),r=[];let g=0;
-  while(r.length<4&&g++<200){
-    const o=op==="?"?["+","-","x"][rnd(0,2)]:op;let a,b,j,q;
-    if(o==="+"){a=rnd(1,mx);b=rnd(1,mx);j=a+b;q=a+" + "+b}
-    else if(o==="-"){a=rnd(2,mx+5);b=rnd(1,a);j=a-b;q=a+" − "+b}
-    else{a=rnd(2,9);b=rnd(2,9);j=a*b;q=a+" × "+b}
-    if(s.has(j))continue;s.add(j);r.push({q,j});
-  }
-  return r;
+function spawn(dt){
+  spawnT-=dt;
+  if(spawnT>0)return;
+  const t=60-masa;
+  spawnT=Math.max(.35,.9-t*.01);
+  const bom=Math.random()<.2+Math.min(.12,t*.002);
+  items.push({x:40+Math.random()*(W-80),y:-40,vy:(150+Math.random()*80+t*3)*(H/700),bom,e:bom?"💣":BUAH[Math.random()*BUAH.length|0],r:Math.random()*6});
 }
-function bundar(){
-  const p=pasangan();
-  const order=[0,1,2,3].sort(()=>Math.random()-.5);
-  kad=p.map((x,i)=>({q:x.q,j:x.j,slot:order[i],hx:0,hy:0,x:0,y:0,siap:false}));
-  pegang=null;susun();
-  for(const k of kad){k.x=k.hx;k.y=k.hy}
-}
-function susun(){
-  cw=Math.min(W/4.5,150);ch=cw*.72;
-  for(let i=0;i<kad.length;i++){
-    const k=kad[i];
-    k.hx=W*(i+.5)/4;k.hy=H*.27;
-    k.tx=W*(k.slot+.5)/4;k.ty=H*.74;
-    if(!k.siap&&k!==pegang){k.x=k.hx;k.y=k.hy}
-    if(k.siap){k.x=k.tx;k.y=k.ty}
-  }
-}
-function reset(){skor=0;nyawa=3;masa=90;pecah=[];tamat=false;rehat=0;jari={x:W/2,y:H/2,ada:false,cubit:false};bundar()}
-function letup(x,y,txt,w){pecah.push({x,y,txt,w,t:0})}
-
-function sasaran(k){
-  let best=null,bd=1e9;
-  for(const t of kad){
-    if(t.siap)continue;
-    const d=Math.hypot(k.x-t.tx,k.y-t.ty);
-    if(d<bd){bd=d;best=t}
-  }
-  return bd<cw*.75?best:null;
-}
-function lepas(){
-  const k=pegang;pegang=null;if(!k)return;
-  const t=sasaran(k);
-  if(!t)return;               // dilepas di luar sasaran: kad balik, tiada penalti
-  if(t===k){k.siap=true;k.x=k.tx;k.y=k.ty;skor+=10;letup(k.tx,k.ty-ch,"✔ +10","#52d681");
-    if(kad.every(z=>z.siap)){skor+=10;letup(W/2,H*.5,"Lengkap! +10","#ffd166");rehat=1}}
-  else{nyawa--;letup(t.tx,t.ty-ch,"✘ -1❤️","#ff5a4e")}
-}
+function letup(x,y,txt,warna){pecah.push({x,y,txt,warna,t:0})}
 
 function update(dt){
   if(tamat)return;
   masa-=dt;$("mas").textContent=Math.max(0,Math.ceil(masa))+"s";
   if(masa<=0||nyawa<=0)return akhir();
-  if(rehat>0){rehat-=dt;if(rehat<=0)bundar();return}
-  // cubit
-  if(jari.ada&&jari.cubit&&!pegang&&!jari.tadiCubit){
-    let best=null,bd=1e9;
-    for(const k of kad){
-      if(k.siap)continue;
-      if(Math.abs(jari.x-k.x)<cw/2+30&&Math.abs(jari.y-k.y)<ch/2+30){
-        const d=Math.hypot(jari.x-k.x,jari.y-k.y);if(d<bd){bd=d;best=k}
-      }
+  spawn(dt);
+  const R=Math.max(34,Math.min(W,H)*.07);
+  for(const it of items){
+    it.y+=it.vy*dt;
+    if(jari.ada&&Math.hypot(it.x-jari.x,it.y-jari.y)<R+Math.max(44,Math.min(W,H)*.095)*.6){
+      it.mati=true;
+      if(it.bom){nyawa--;letup(it.x,it.y,"💥 -1❤️","#ff5a4e")}
+      else{skor+=10;letup(it.x,it.y,"+10","#ffb627")}
+    }else if(it.y>H+40){
+      it.mati=true;
     }
-    if(best)pegang=best;
   }
-  if(pegang&&(!jari.ada||!jari.cubit))lepas();
-  jari.tadiCubit=jari.cubit&&jari.ada;
-  for(const k of kad){
-    if(k.siap)continue;
-    const tx=k===pegang?jari.x:k.hx,ty=k===pegang?jari.y:k.hy;
-    const f=k===pegang?.5:.18;
-    k.x+=(tx-k.x)*f;k.y+=(ty-k.y)*f;
-  }
+  items=items.filter(i=>!i.mati);
   $("sk").textContent="⭐ "+skor;
   $("ny").textContent="❤️".repeat(Math.max(0,nyawa));
   for(const p of pecah)p.t+=dt;
-  pecah=pecah.filter(p=>p.t<.9);
+  pecah=pecah.filter(p=>p.t<.8);
 }
 
-function kotak(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,r)}
 function lukis(){
   ctx.clearRect(0,0,W,H);
-  if(v.readyState>=2){
-    ctx.save();
-    if(mode==="user"){ctx.translate(W,0);ctx.scale(-1,1)}
-    ctx.globalAlpha=.9;ctx.drawImage(v,0,0,W,H);
-    ctx.restore();
-    ctx.fillStyle="rgba(27,42,65,.45)";ctx.fillRect(0,0,W,H);
-  }
+  lukisVideo("rgba(10,30,20,.07)");
   ctx.textAlign="center";ctx.textBaseline="middle";
-  if(aktif&&kad){
-    const fs=Math.round(cw*.34);
-    const hover=pegang?sasaran(pegang):null;
-    // sasaran jawapan
-    for(const k of kad){
-      kotak(k.tx,k.ty,cw,ch,14);
-      if(k.siap){ctx.fillStyle="rgba(82,214,129,.9)";ctx.fill()}
-      else{ctx.fillStyle=hover===k?"rgba(244,162,97,.45)":"rgba(255,255,255,.14)";ctx.fill();
-        ctx.setLineDash([8,6]);ctx.lineWidth=3;ctx.strokeStyle=hover===k?"#f4a261":"#fffb";ctx.stroke();ctx.setLineDash([])}
-      ctx.fillStyle=k.siap?"#10331d":"#fff";ctx.font="bold "+fs+"px 'Trebuchet MS',sans-serif";
-      ctx.fillText(k.siap?k.q+" = "+k.j:k.j,k.tx,k.ty);
-      if(k.siap){ctx.font="bold "+Math.round(fs*.6)+"px sans-serif"}
-    }
-    // kad soalan
-    for(const k of kad){
-      if(k.siap)continue;
-      const p=k===pegang;
-      ctx.save();
-      ctx.shadowColor="#0009";ctx.shadowBlur=p?22:8;ctx.shadowOffsetY=p?10:3;
-      kotak(k.x,k.y,cw*(p?1.08:1),ch*(p?1.08:1),14);
-      ctx.fillStyle=p?"#ffd166":"#fdf6e3";ctx.fill();
-      ctx.restore();
-      ctx.fillStyle="#2a1500";ctx.font="bold "+fs+"px 'Trebuchet MS',sans-serif";
-      ctx.fillText(k.q,k.x,k.y);
-    }
+  const fs=Math.max(44,Math.min(W,H)*.095);
+  ctx.font=fs+"px serif";
+  for(const it of items){
+    ctx.save();ctx.translate(it.x,it.y);
+    ctx.shadowColor="#000a";ctx.shadowBlur=14;ctx.shadowOffsetY=4;
+    ctx.beginPath();ctx.arc(0,0,fs*.68,0,7);
+    ctx.fillStyle=it.bom?"#2a0d0d":"#fff8e7";ctx.fill();
+    ctx.shadowColor="transparent";
+    ctx.lineWidth=5;ctx.strokeStyle=it.bom?"#ff5a4e":"#ffb627";ctx.stroke();
+    ctx.rotate(Math.sin(it.y/60+it.r)*.3);
+    ctx.fillText(it.e,0,fs*.04);
+    ctx.restore();
   }
-  for(const p of pecah){ctx.globalAlpha=1-p.t/.9;ctx.fillStyle=p.w;ctx.font="bold 28px sans-serif";ctx.fillText(p.txt,p.x,p.y-p.t*60)}
+  for(const p of pecah){ctx.globalAlpha=1-p.t/.8;ctx.fillStyle=p.warna;ctx.font="bold 28px sans-serif";ctx.fillText(p.txt,p.x,p.y-p.t*70)}
   ctx.globalAlpha=1;
-  if(jari&&jari.ada){
-    ctx.beginPath();ctx.arc(jari.x,jari.y,jari.cubit?14:22,0,7);
-    if(jari.cubit){ctx.fillStyle="#f4a261";ctx.fill()}
-    ctx.lineWidth=4;ctx.strokeStyle="#f4a261";ctx.stroke();
+  if(jari.ada){
+    const R=Math.max(34,Math.min(W,H)*.07);
+    ctx.beginPath();ctx.arc(jari.x,jari.y,R,0,7);
+    ctx.fillStyle="rgba(255,182,39,.25)";ctx.fill();
+    ctx.lineWidth=4;ctx.strokeStyle="#ffb627";ctx.stroke();
   }
 }
 
@@ -199,28 +146,23 @@ function kesan(){
   lastV=v.currentTime;
   const r=hand.detectForVideo(v,performance.now());
   if(r.landmarks.length){
-    const L=r.landmarks[0],vw=v.videoWidth||4,vh=v.videoHeight||3;
-    const d=(a,b)=>Math.hypot((a.x-b.x)*vw,(a.y-b.y)*vh);
-    const nisbah=d(L[4],L[8])/(d(L[0],L[9])||1);
-    // histeresis: cubit bermula <0.35, dilepas >0.55
-    if(jari.cubit)jari.cubit=nisbah<.55;else jari.cubit=nisbah<.35;
-    const mx=(L[4].x+L[8].x)/2,my=(L[4].y+L[8].y)/2;
-    const tx=(mode==="user"?1-mx:mx)*W,ty=my*H;
+    const p=r.landmarks[0][8];
+    const [tx,ty]=peta(p.x,p.y);
     if(!jari.ada){jari.x=tx;jari.y=ty}
-    jari.x+=(tx-jari.x)*.55;jari.y+=(ty-jari.y)*.55;jari.ada=true;
-  }else{jari.ada=false;jari.cubit=false}
+    jari.x+=(tx-jari.x)*.6;jari.y+=(ty-jari.y)*.6;jari.ada=true;
+  }else jari.ada=false;
 }
 
 function akhir(){
-  tamat=true;aktif=false;pegang=null;
+  tamat=true;
   let baru=false;
-  if(skor>rekod){rekod=skor;baru=true;try{localStorage.setItem("pj_rekod",rekod)}catch(e){}}
-  $("hud").hidden=true;$("cam").style.display="none";
+  if(skor>rekod){rekod=skor;baru=true;try{localStorage.setItem("tb_rekod",rekod)}catch(e){}}
+  $("hud").hidden=true;$("cam").style.display=$("mir").style.display="none";
   $("menu").style.display="flex";
-  $("menu").querySelector("h1").textContent=nyawa<=0?"Nyawa habis!":"Masa tamat!";
-  $("menu").querySelectorAll("p")[0].textContent="Markah anda: "+skor+(baru?" 🎉 Rekod baharu!":"")+". Pilih operasi untuk main lagi.";
+  $("menu").querySelector("h1").textContent=nyawa<=0?"Bom kena!":"Masa tamat!";
+  $("menu").querySelectorAll("p")[0].textContent="Markah anda: "+skor+(baru?" 🎉 Rekod baharu!":"");
   $("rek").textContent="Rekod terbaik: "+rekod;
-  document.querySelectorAll(".ops button").forEach(b=>b.disabled=false);
+  $("go").textContent="Main lagi";$("go").disabled=false;
 }
 
 function gelung(t){
@@ -229,24 +171,25 @@ function gelung(t){
   requestAnimationFrame(gelung);
 }
 
-document.querySelectorAll(".ops button").forEach(btn=>btn.onclick=async()=>{
-  document.querySelectorAll(".ops button").forEach(b=>b.disabled=true);
-  $("msg").textContent="";op=btn.dataset.op;
+$("go").onclick=async()=>{
+  $("go").disabled=true;$("msg").textContent="";
   try{
     if(!jalan){
       $("msg").textContent="Membuka kamera dan memuat model...";
       await bukaKamera();await muat();jalan=true;
       requestAnimationFrame(gelung);
     }
-    reset();aktif=true;
-    $("menu").style.display="none";$("hud").hidden=false;$("cam").style.display="block";
+    reset();
+    $("menu").style.display="none";$("hud").hidden=false;$("cam").style.display=$("mir").style.display="block";
   }catch(e){
     $("msg").textContent="Gagal: benarkan kamera dan pastikan guna https atau localhost, serta ada internet.";
-    document.querySelectorAll(".ops button").forEach(b=>b.disabled=false);
+    $("go").disabled=false;
   }
-});
-$("cam").onclick=async()=>{mode=mode==="user"?"environment":"user";try{await bukaKamera()}catch(e){}};
-saiz();
+};
+$("cam").onclick=async()=>{mode=mode==="user"?"environment":"user";cermin=mode==="user";labelCermin();try{await bukaKamera()}catch(e){}};
+$("mir").onclick=()=>{cermin=!cermin;labelCermin()};
+reset();
+if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 </script>
 </body>
 </html>
