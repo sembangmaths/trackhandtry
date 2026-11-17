@@ -81,6 +81,7 @@ button.ghost{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;border:
   <p id="res" class="tag"></p>
   <button id="bAgain" data-i="again" style="width:100%"></button>
   <button class="ghost" id="bRe" data-i="recal"></button>
+  <button class="ghost" id="bHome" data-i="home"></button>
 </div></div>
 
 <div id="calib" class="hide">
@@ -112,8 +113,8 @@ function dbg(t){$('dbg').textContent=t}
 const setSt=t=>$('st').textContent=t;
 function flash(t){const f=$('flash');f.textContent=t;f.style.opacity=1;clearTimeout(fl);fl=setTimeout(()=>f.style.opacity=0,800)}
 
-const T={ms:{tag:'Lari guna gerakan badan!',tip:'Berdiri ±2 m dari kamera. Lompat penghadang kuning, tunduk bawah palang hijau, elak blok merah jambu.',m1:'Condong',m2:'Lompat',m3:'Tunduk',th_city:'Bandar Senja',th_jungle:'Hutan Pagi',th_space:'Angkasa',bCam:'📷 Mula guna kamera',bKey:'⌨️ Papan kekunci / swipe',flip:'🔄 Kamera: ',front:'depan',back:'belakang',over:'TAMAT!',nb:'REKOD BARU!',best:'Terbaik',again:'▶ Main lagi',recal:'🎯 Kalibrasi semula',cT:'Berdiri tegak di tengah',cM:'Pastikan bahu hingga pinggul nampak.',hold:'Tahan… jangan bergerak.',noP:'Tiada orang dikesan. Tambah cahaya dan undur sikit.',noSh:'Kedua-dua bahu mesti nampak. Undur sikit.',ok:'model OK · badan dikesan',up:' (separuh atas)',load:'Memuatkan model badan…',fail:'Gagal: ',failH:'Guna localhost/HTTPS dan benarkan kamera.',ouch:'💥 Aduh!',lost:'⚠️ Badan tak nampak'},
-en:{tag:'Run with your whole body!',tip:'Stand about 2 m from the camera. Jump yellow barriers, duck under green bars, dodge pink blocks.',m1:'Lean',m2:'Jump',m3:'Duck',th_city:'Sunset City',th_jungle:'Morning Jungle',th_space:'Outer Space',bCam:'📷 Play with camera',bKey:'⌨️ Keyboard / swipe',flip:'🔄 Camera: ',front:'front',back:'back',over:'GAME OVER',nb:'NEW BEST!',best:'Best',again:'▶ Play again',recal:'🎯 Recalibrate',cT:'Stand tall in the middle',cM:'Keep your shoulders to hips in view.',hold:'Hold still…',noP:'No one found. Add light and step back.',noSh:'Both shoulders must be visible. Step back.',ok:'model OK · body detected',up:' (upper body)',load:'Loading body model…',fail:'Failed: ',failH:'Use localhost/HTTPS and allow the camera.',ouch:'💥 Ouch!',lost:"⚠️ Can't see you"}};
+const T={ms:{tag:'Lari guna gerakan badan!',tip:'Berdiri ±2 m dari kamera. Lompat penghadang kuning, tunduk bawah palang hijau, elak blok merah jambu.',m1:'Condong',m2:'Lompat',m3:'Tunduk',th_city:'Bandar Senja',th_jungle:'Hutan Pagi',th_space:'Angkasa',bCam:'📷 Mula guna kamera',bKey:'⌨️ Papan kekunci / swipe',flip:'🔄 Kamera: ',front:'depan',back:'belakang',over:'TAMAT!',nb:'REKOD BARU!',best:'Terbaik',again:'▶ Main lagi',home:'🏠 Kembali ke menu',recal:'🎯 Kalibrasi semula',cT:'Berdiri tegak di tengah',cM:'Pastikan bahu hingga pinggul nampak.',hold:'Tahan… jangan bergerak.',noP:'Tiada orang dikesan. Tambah cahaya dan undur sikit.',noSh:'Kedua-dua bahu mesti nampak. Undur sikit.',ok:'model OK · badan dikesan',up:' (separuh atas)',load:'Memuatkan model badan…',fail:'Gagal: ',failH:'Guna localhost/HTTPS dan benarkan kamera.',ouch:'💥 Aduh!',lost:'⚠️ Badan tak nampak'},
+en:{tag:'Run with your whole body!',tip:'Stand about 2 m from the camera. Jump yellow barriers, duck under green bars, dodge pink blocks.',m1:'Lean',m2:'Jump',m3:'Duck',th_city:'Sunset City',th_jungle:'Morning Jungle',th_space:'Outer Space',bCam:'📷 Play with camera',bKey:'⌨️ Keyboard / swipe',flip:'🔄 Camera: ',front:'front',back:'back',over:'GAME OVER',nb:'NEW BEST!',best:'Best',again:'▶ Play again',home:'🏠 Back to home',recal:'🎯 Recalibrate',cT:'Stand tall in the middle',cM:'Keep your shoulders to hips in view.',hold:'Hold still…',noP:'No one found. Add light and step back.',noSh:'Both shoulders must be visible. Step back.',ok:'model OK · body detected',up:' (upper body)',load:'Loading body model…',fail:'Failed: ',failH:'Use localhost/HTTPS and allow the camera.',ouch:'💥 Ouch!',lost:"⚠️ Can't see you"}};
 let lang='ms',theme='city';try{lang=localStorage.getItem('br_lang')||'ms';theme=localStorage.getItem('br_th')||'city'}catch(e){}
 const t=k=>T[lang][k];
 const TH={
@@ -520,7 +521,7 @@ function frame(now){
   const dt=Math.min(.05,(now-last)/1000);last=now;S.t+=dt;
   try{
     readPose(now);
-    if(S.mode==='play')update(dt);else if(S.mode!=='over')S.dist+=dt*8;
+    if(S.mode==='play')update(dt);else{S.shake=Math.max(0,S.shake-dt*3);if(S.mode!=='over')S.dist+=dt*8}
     draw();
   }catch(e){dbg('Ralat: '+e.message)}
   requestAnimationFrame(frame);
@@ -535,6 +536,12 @@ $('bAgain').onclick=startGame;
 document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{lang=b.dataset.l;applyLang()});
 document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{theme=b.dataset.th;applyLang()});
 applyLang();
+$('bHome').onclick=()=>{
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  camOn=false;S.mode='menu';S.obs=[];S.cs=[];S.inv=0;S.lives=3;S.shake=0;
+  $('cam').style.display='none';$('cam').classList.remove('big');$('pad').style.display='none';
+  hide('over');hide('calib');show('menu');setSt('');applyLang();
+};
 $('bRe').onclick=()=>{if(camOn)beginCalib();else{hide('over');show('menu')}};
 function act(a){
   if(S.mode!=='play')return;
